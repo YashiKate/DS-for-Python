@@ -45,3 +45,106 @@ print(results.rowcount)
 
 # Execute the select_stmt again to view the changes
 print(connection.execute(select_stmt).fetchall())
+
+
+
+##### Deleting specific record from a Table
+# Build a statement to count records using the sex column for Men ('M') age 36: stmt
+stmt = select([func.count(census.columns.sex)]).where(
+    and_(census.columns.sex == 'M',
+         census.columns.age == 36)
+)
+
+# Execute the select statement and use the scalar() fetch method to save the record count
+to_delete = connection.execute(stmt).scalar()
+
+# Build a statement to delete records from the census table: stmt_del
+stmt_del = delete(census)
+
+# Append a where clause to target Men ('M') age 36
+stmt_del = stmt_del.where(
+    and_(census.columns.sex == 'M',
+         census.columns.age == 36)
+)
+
+# Execute the statement: results
+results = connection.execute(stmt_del)
+
+# Print affected rowcount and to_delete record count, make sure they match
+print(results.rowcount, to_delete)
+
+##### drop table
+# Drop the state_fact table
+state_fact.drop(engine)
+
+# Check to see if state_fact exists
+print(state_fact.exists(engine))
+
+# Drop all tables
+metadata.drop_all(engine)
+
+# Check to see if census exists
+print(census.exists(engine))
+
+
+
+###### Census case study
+## Import Table, Column, String, and Integer
+from sqlalchemy import Table, Column, String,Integer
+# Build a census table: census
+census = Table('census', metadata,
+               Column('state', String(30)),
+               Column('sex', String(1)),
+               Column('age', Integer()),
+               Column('pop2000', Integer()),
+               Column('pop2008', Integer()))
+
+# Create the table in the database
+metadata.create_all(engine)
+
+
+### read data from CSV
+# Create an empty list: values_list
+values_list = []
+
+# Iterate over the rows
+for row in csv_reader:
+    # Create a dictionary with the values
+    data = {'state': row[0], 'sex': row[1], 'age':row[2], 'pop2000': row[3],
+            'pop2008': row[4]}
+    # Append the dictionary to the values list
+    values_list.append(data)
+
+##### insert a list
+# Import insert
+from sqlalchemy import insert
+
+# Build insert statement: stmt
+stmt=insert(census)
+
+# Use values_list to insert data: results
+results = connection.execute(stmt, values_list)
+
+# Print rowcount
+print(results.rowcount)
+
+
+##### build query
+# Import select
+from sqlalchemy import select
+
+# Calculate weighted average age: stmt
+stmt = select([census.columns.sex,
+               (func.sum(census.columns.pop2008 * census.columns.age) /
+                func.sum(census.columns.pop2008)).label('average_age')
+               ])
+
+# Group by sex
+stmt = stmt.group_by(census.columns.sex)
+
+# Execute the query and store the results: results
+results = connection.execute(stmt).fetchall()
+
+# Print the average age by sex
+for each in results:
+    print(each.sex, each.average_age)
